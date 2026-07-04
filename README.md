@@ -2,7 +2,7 @@
 
 Numerical solution of the degree-4 polynomial equation arising from the local spectral law for sparse sample covariance matrices, as described in:
 
-> Local law and complete eigenvector delocalization for supercritical Erdös-Rènyi graphs. He, Yukun and Knowles, Antti and Marcozzi, Matteo. (2018)
+> Local law and Tracy--Widom limit for sparse sample covariance matrices. Hwang, Lee, and Schnelli. The Annals of Applied Probability-  (2019)
 
 Code used for Diego Caudillo's MSc Thesis.
 
