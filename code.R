@@ -1,21 +1,58 @@
+# =============================================================================
+# Numerical Solution of the HLS18 Functional Equation
+# Local Law for Sparse Sample Covariance Matrices
+# =============================================================================
+# Author : Diego Caudillo  |  dcaudillo@cimat.mx
+# Date   : April 2019
+# =============================================================================
+#
+# CONTEXT
+# -------
+# Given an N x M sparse random matrix X with iid entries of variance 1/N
+# and fourth cumulant Kappa, the empirical spectral distribution of X^T X
+# converges (in an appropriate local sense) to a measure whose Stieltjes
+# transform m(z) satisfies the degree-4 polynomial equation P4(m,z) = 0.
+#
+# This file implements:
+#   (1)  m.4.HLS18  -- all four roots of P4, unordered
+#   (2)  continuity -- greedy reordering to enforce path-continuity of roots
+#   (3)  m.HLS18    -- the unique Stieltjes-admissible root
+#   (4)  d.HLS18    -- the local spectral density (user-facing interface)
+#
+# USER INTERFACE
+# --------------
+#   d.HLS18(E, N, M, Kappa, eta)
+#
+#   Arguments:
+#     E     -- numeric vector of real energies (evaluation points)
+#     N, M  -- matrix dimensions  (d = N/M is the aspect ratio)
+#     Kappa -- fourth cumulant of the (normalized) matrix entries
+#             (for Bernoulli(p)/sqrt(p) entries: Kappa = (1-p)/p)
+#     eta   -- imaginary resolution (eta > 0); smaller = finer scale
+#
+#   Returns:
+#     Numeric vector of the same length as E with the density values.
+#
+# EXAMPLE
+#   E   <- seq(-0.5, 5, length.out = 500)
+#   rho <- d.HLS18(E, N=2048, M=2048/2.5, Kappa=500, eta=2048^{-0.6})
+#   plot(E, rho, type='l')
+# =============================================================================
+
+
 # -----------------------------------------------------------------------------
-# Funciones para Resolver la Ecuación Funcional en HLS18
-# Autor: Diego Caudillo - Abril 2019 dcaudillo@cimat.mx
+# (1)  m.4.HLS18
+#      Returns all four roots of P4(m, z) = 0 for each z in the input vector.
+#      Roots are computed via R's polyroot() and returned with NO guaranteed
+#      ordering -- use m.HLS18 for the admissible root.
+#
+#      Parameters
+#        z     : complex vector (typically z = E + i*eta)
+#        N, M  : matrix dimensions
+#        Kappa : fourth cumulant of normalized entries
+#
+#      Returns : 4 x length(z) complex matrix (columns = roots per z)
 # -----------------------------------------------------------------------------
-
-
-# Como usarse:
-# La mayoria de las funciones son de uso interno.
-# La interfaz de usuario es
-#      d.HLS18(E,N,M,Kappa,eta){
-# donde E es un arreglo de reales, M y N son las dimensiones de la matriz
-# Kappa es el cuarto cumulante de las entradas normalizadas
-# y eta>0 es la resolucion deseada
-#      La funcion regresa la densidad de HLS18 en un arreglo del mismo 
-# tamano que E.
-
-
-# Las 4 raices del polinomio por lote sin orden alguno
 m.4.HLS18 <- function(z,N,M,Kappa){
   d <- N/M
   D <- 1-1/d
@@ -39,8 +76,26 @@ m.4.HLS18 <- function(z,N,M,Kappa){
   return(r)
 }
 
-# Algoritmo greedy para asegurar estabilidad numerica.
-# Intercambio del orden de las raices considerando longitud de linea
+
+# -----------------------------------------------------------------------------
+# (2)  continuity
+#      Greedy root-reordering to enforce path-continuity between two
+#      consecutive root sets A (previous step) and B (current step).
+#
+#      For each position j, considers all swaps (j, k) with k > j and
+#      applies the swap if it reduces the total displacement:
+#        |B[j]-A[j]| + |B[k]-A[k]|  -->  |B[k]-A[j]| + |B[j]-A[k]|
+#
+#      The theoretical backing for this greedy approach is the equivalence
+#      between combinatorial and Euclidean distance for algebraic curves
+#      (see Tao, "Topics in Random Matrix Theory", 2012).
+#
+#      Parameters
+#        A : complex vector of roots at the previous step
+#        B : complex vector of roots at the current step (to be reordered)
+#
+#      Returns : reordered version of B
+# -----------------------------------------------------------------------------
 continuity <- function(A , B){
   if( length(A) != length(B) ) return(NULL)
   for( j in 1:(length(A)-1) ){
@@ -60,7 +115,27 @@ continuity <- function(A , B){
   return(B)
 }
 
-# Escoge la mejor raiz usando continuidad y cercania a (-z) lejos de R
+
+# -----------------------------------------------------------------------------
+# (3)  m.HLS18
+#      Selects the unique Stieltjes-admissible root of P4 for each z.
+#
+#      Strategy:
+#        - Far from the real line (Im(z) = high), only one root satisfies
+#          z * m(z) ~ -1, which is the Stieltjes condition at infinity.
+#        - Starting from that stable regime, approach Im(z) = Im(z_target)
+#          via exponentially spaced steps, applying continuity() at each step
+#          to track the correct root.
+#
+#      Parameters
+#        z    : complex vector of evaluation points
+#        N, M : matrix dimensions
+#        Kappa: fourth cumulant
+#        high : imaginary part considered "far from real line" (default 1e2)
+#        Step : multiplicative step size for the exponential ladder (default 2)
+#
+#      Returns : complex vector of the admissible m(z) values
+# -----------------------------------------------------------------------------
 m.HLS18 <- function(z,N,M,Kappa,high=1e2,Step=2){
   r <- sapply( z , function(Z){
     
@@ -79,10 +154,38 @@ m.HLS18 <- function(z,N,M,Kappa,high=1e2,Step=2){
   return(r)
 }
 
-# Densidad Atomo en Cero [Cauchy Escalada]
+
+# -----------------------------------------------------------------------------
+# (4)  dirac.cauchy
+#      Cauchy (Poisson) kernel approximating a Dirac delta at 0.
+#      Used to remove the atom at zero contributed by the rank deficiency
+#      when N > M (i.e. d = N/M > 1 implies a point mass of size 1 - 1/d).
+#
+#      Parameters
+#        x   : real vector
+#        eta : half-width of the Cauchy kernel (= imaginary resolution)
+#
+#      Returns : (eta/pi) / (x^2 + eta^2)
+# -----------------------------------------------------------------------------
 dirac.cauchy <- function(x,eta)  return( (eta/pi)/( x*x + eta*eta ) )
 
-# Curva de densidad para un nivel eta
+
+# -----------------------------------------------------------------------------
+# (5)  d.HLS18  [USER INTERFACE]
+#      Spectral density of the HLS18 local law at resolution eta.
+#
+#      Computed as the inverse Stieltjes transform:
+#        rho(E) = (N/M) * Im( m(E + i*eta) ) / pi
+#      minus the atom at zero (approximated by a scaled Cauchy kernel).
+#
+#      Parameters
+#        E     : real vector of energy values
+#        N, M  : matrix dimensions
+#        Kappa : fourth cumulant of normalized entries
+#        eta   : imaginary resolution (e.g. N^{-0.6} for intermediate scale)
+#
+#      Returns : non-negative numeric vector of density values (same length as E)
+# -----------------------------------------------------------------------------
 d.HLS18 <- function(E,N,M,Kappa,eta){
   z <- complex(real = E,imaginary = eta)
   m <- m.HLS18(z,N,M,Kappa)
@@ -91,4 +194,3 @@ d.HLS18 <- function(E,N,M,Kappa,eta){
   dens <- pmax(dens - atom,0)     # HLS18 si considera el atomo en cero
   return( dens )
 }
-
