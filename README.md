@@ -2,9 +2,12 @@
 
 Numerical solution of the degree-4 polynomial equation arising from the local spectral law for sparse sample covariance matrices, as described in:
 
-> Reinhard Klette, *Concise Computer Vision: An Introduction into Theory and Algorithms*, Springer, London, 2014.
+> Local law and complete eigenvector delocalization for supercritical Erdös-Rènyi graphs. He, Yukun and Knowles, Antti and Marcozzi, Matteo. (2018)
+
+Code used for Diego Caudillo's MSc Thesis.
 
 > **This project is no longer maintained and is provided as-is, without warranty of any kind.**
+> **This version contains AI-generated code (missing_functions.R and readme.md) directly from the respective chapter of the thesis.**
 
 ---
 
@@ -100,4 +103,4 @@ plot.progression(N = 2048)
 ## License
 
 GNU General Public License v2 or later.  
-Copyright 2019 Diego de Jesus Caudillo Amador — CIMAT.
+Copyright 2019 Diego Caudillo Amador.
